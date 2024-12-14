@@ -1,4 +1,4 @@
-const {User,Food}=require('./models')
+const {User}=require('./models')
 exports.signup=async(req,res)=>{
     try {
         console.log('hai?');
@@ -10,16 +10,8 @@ exports.signup=async(req,res)=>{
         console.error(err);
         res.status(500).send("Internal Server Error");
     }
-}
-exports.CreateMeal=async(req,res)=>{
-    try{
-        const new_meal=await Food(req.body);
-        await new_meal.save();
-        res.send(new_meal);
-    }
-    catch (err) {
-        console.error(err);
-        res.status(500).send("Internal Server Error");
-
-    }
+   
+   
+    
+   
 }
