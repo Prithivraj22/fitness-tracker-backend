@@ -1,4 +1,4 @@
-const {User}=require('./models')
+const {User,Food}=require('./models')
 exports.signup=async(req,res)=>{
     try {
         console.log('hai?');
@@ -14,4 +14,4 @@ exports.signup=async(req,res)=>{
    
     
    
- 
+}

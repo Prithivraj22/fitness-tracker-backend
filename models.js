@@ -10,17 +10,22 @@ const user=new Schema
         mobileno:{type:'Number',default:9361648407},
         height:{type:'Number'},
         weight:{type:'Number'},
-        dob:{type:'Date'},
+        dob:{type:'Date',default: Date.now},
         country:{type:'String'},
 
         gender:{type:'Boolean'},
-        macros:[],
+        Calorie:{type:'Number',default:0},
+
+        Protein:{type:'Number',default:0},
+        Fat:{type:'Number',default:0},
+        Carbs:{type:'Number',default:0},
         bloodGroup:{type:"String"},
         RHtype:{type:'Boolean'}
 
     }
 )
 const food=new Schema(
+    
     {
         dish_name:{type:'String',unique:true},
         calorie:{type:'Number'},
@@ -47,4 +52,5 @@ const calorie_history=new Schema(
 
 )
 const User=mongoose.model('User',user);
-module.exports ={User};
+const Food=mongoose.model('Food',food);
+module.exports ={User,Food};
