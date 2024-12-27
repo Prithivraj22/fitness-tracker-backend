@@ -55,3 +55,33 @@ router.get('/exchange_token', async (req, res) => {
         res.status(500).send('Failed to exchange token');
     }
 });
+
+// Fetch user activities
+router.get('/activities', async (req, res) => {
+    const accessToken = req.query.accessToken; // Use the access token for the authenticated user
+
+    if (!accessToken) {
+        return res.status(400).send('Access token missing');
+    }
+
+    try {
+        const response = await axios.get('https://www.strava.com/api/v3/athlete/activities', {
+            headers: {
+                Authorization: Bearer ${accessToken},
+            },
+        });
+
+        res.json({
+            message: 'Fetched activities successfully',
+            activities: response.data,
+        });
+    } catch (error) {
+        console.error('Error fetching activities:', error.message);
+        res.status(500).send('Failed to fetch activities');
+    }
+});
+
+router.get("/strava/activities",controll.getStravaActivities);
+//router.get('/strava/activity/:activityId', controll.getStravaActivityDetails);
+
+
