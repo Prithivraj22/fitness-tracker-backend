@@ -65,21 +65,27 @@ exports.getStravaActivities = async (req, res) => {
             },
         });
 
-        const activities = response.data.map(activity => ({
-        const strideLen=0.82;//default stride length
-        const stepCount=activity.type==="Run" || activity.type==="Walk" ? Math.round(activity.distance/strideLen) : 'N/A';
-         return{            
-            id: activity.id,
-            name: activity.name,
-            distance: activity.distance,
-            duration: activity.elapsed_time,
-            type: activity.type,
-            start_date_local: activity.start_date_local,
-            average_speed: activity.average_speed,
-            calories: activity.calories || 'N/A',
-            stepCount,
-         };
-        }));
+        const strideLen = 0.82; // Default stride length
+        const activities = response.data.map(activity => {
+            // Calculate step count based on activity type
+            let stepCount = 'N/A';
+            if (activity.type === "Run" || activity.type === "Walk") {
+                stepCount = Math.round(activity.distance / strideLen);
+            }
+
+            // Return the formatted activity object
+            return {
+                id: activity.id,
+                name: activity.name,
+                distance: activity.distance,
+                duration: activity.elapsed_time,
+                type: activity.type,
+                start_date_local: activity.start_date_local,
+                average_speed: activity.average_speed,
+                calories: activity.calories || 'N/A',
+                stepCount,
+            };
+        });
 
         res.json({
             message: 'Activities fetched successfully!',
