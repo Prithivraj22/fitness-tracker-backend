@@ -15,7 +15,7 @@ const REDIRECT_URI = 'http://localhost:3000/exchange_token';
 
 // Step 1: Redirect to Strava Authorization URL
 router.get('/auth/strava', (req, res) => {
-    const authURL = https://www.strava.com/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=read,activity:read_all;
+    const authURL = `https://www.strava.com/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=read,activity:read_all`;
     res.redirect(authURL);
 });
 
@@ -67,7 +67,7 @@ router.get('/activities', async (req, res) => {
     try {
         const response = await axios.get('https://www.strava.com/api/v3/athlete/activities', {
             headers: {
-                Authorization: Bearer ${accessToken},
+                Authorization: `Bearer ${accessToken}`,
             },
         });
 
@@ -82,6 +82,6 @@ router.get('/activities', async (req, res) => {
 });
 
 router.get("/strava/activities",controll.getStravaActivities);
-//router.get('/strava/activity/:activityId', controll.getStravaActivityDetails);
+//router.get('/strava/activity/:activityId', controll.getStravaActivityDetails);  added lately if needed
 
 
