@@ -1,11 +1,37 @@
 const {User,Food}=require('./models')
-exports.signup=async(req,res)=>{
-    try {
-        console.log('hai?');
-        const user=await User(req.body);
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const secretKey=process.env.SECRET_KEY
+exports.signup=async(req,res)=>{         
+    try {    
+        const hashed_pass=await bcrypt.hash(req.body.password,10);
+        const user=await  User({
+            username:req.body.username,
+       
+        password:hashed_pass,
+        email:req.body.email,
+        // mobileno:req.body.mobileno,
+        height:req.body.height,
+        weight:req.body.weight,
+        dob:req.body.dob,
+        country:req.body.country,
+
+        gender:req.body.gender,
+        bloodGroup:req.body.bloodGroup,
+        RHtype:req.body.RHtype
+
+        });
         await user.save();
-        console.log(user);
-        res.send('hai?');
+        console.log(process.env.SECRET_KEY);
+        const token = jwt.sign({ userId: user._id, email: user.email }, process.env.SECRET_KEY, {
+            expiresIn: '1h',
+          });
+          res.cookie('token', token, {
+            httpOnly: true,              secure: true,    
+            sameSite: 'strict',
+            maxAge: 3600000, 
+          });  
+        res.send(token);
     } catch (err) {
         console.error(err);
         res.status(500).send("Internal Server Error");

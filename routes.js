@@ -1,11 +1,12 @@
 const express=require('express');
 const router=express.Router();
 const controll = require('./controller')
+const auth = require('./Authorize');
 
     // console.log("hai")
 router.post('/signup',controll.signup);
 router.post('/update_macros',controll.updateMacros);
-router.post('/meal',controll.CreateMeal);
+router.post('/meal',auth,controll.CreateMeal);
 module.exports=router;
 
 // Strava OAuth configuration
