@@ -11,6 +11,7 @@ app.use(cookieParser())
 app.use(cors())
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
 app.get('/', (req, res) => {
     
     res.send("Welcome to our fitness Tracker!");
@@ -23,4 +24,8 @@ app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
 // const routes = require('./route')
+
 app.use(routes);
+
+const refreshAccessToken = require('./middlewares/refreshFitbitToken');
+app.use(refreshAccessToken);
