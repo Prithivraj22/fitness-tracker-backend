@@ -187,7 +187,7 @@ exports.getFitbitActivities = async (req, res) => {
             heartRateData: heartRateData.map(entry => ({
                 time: entry.time,
                 bpm: entry.value,
-            }
+            })),
         };
 
         res.json({
