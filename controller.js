@@ -10,6 +10,7 @@ const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
 const FITBIT_CLIENT_ID = process.env.FITBIT_CLIENT_ID;
 const FITBIT_CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
 
+
 exports.signup = async (req, res) => {
     try {
         const hashed_pass = await bcrypt.hash(req.body.password, 10);
@@ -75,54 +76,29 @@ exports.getStravaActivities = async (req, res) => {
         return res.status(400).send('Access token is missing.');
     }
 
-    try {
-        const response = await axios.get('https://www.strava.com/api/v3/athlete/activities', {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        });
-
-        const strideLen = 0.82; // Default stride length
-        const activities = response.data.map(activity => {
-            let stepCount = 'N/A';
-            if (activity.type === "Run" || activity.type === "Walk") {
-                stepCount = Math.round(activity.distance / strideLen);
-            }
-
-            return {
-                id: activity.id,
-                name: activity.name,
-                distance: activity.distance,
-                duration: activity.elapsed_time,
-                type: activity.type,
-                start_date_local: activity.start_date_local,
-                average_speed: activity.average_speed,
-                calories: activity.calories || 'N/A',
-                stepCount,
-            };
-        });
-
+        try {
+        const result = await fetchFitbitData(accessToken, date);
         res.json({
-            message: 'Activities fetched successfully!',
-            activities,
+            message: 'Fitbit data fetched successfully!',
+            result,
         });
-    } catch (err) {
-        console.error('Error fetching activities:', err.message);
-        res.status(500).send('Failed to fetch activities.');
+    } catch (error) {
+        console.error('Error fetching Fitbit data:', error.message);
+        res.status(500).send('Failed to fetch Fitbit data.');
     }
 };
 
-// Fetch Fitbit Activities with Time Validation (beforetime, aftertime)
+
 exports.getFitbitActivities = async (req, res) => {
-    const accessToken = req.validAccessToken || req.newAccessToken;
-    const date = req.query.date || moment().format('YYYY-MM-DD'); // Default to today if no date is provided
+    const accessToken = req.cookies.fitbitAccessToken;
 
     if (!accessToken) {
-        return res.status(400).send('Access token is missing.');
+        return res.status(401).json({ error: 'Access token is missing' });
     }
 
+    const date = req.query.date || moment().format('YYYY-MM-DD');
+
     try {
-        // Fetch daily activity summary
         const dailySummaryResponse = await axios.get(
             `https://api.fitbit.com/1/user/-/activities/date/${date}.json`,
             {
@@ -130,7 +106,6 @@ exports.getFitbitActivities = async (req, res) => {
             }
         );
 
-        // Fetch lifetime stats
         const lifetimeStatsResponse = await axios.get(
             'https://api.fitbit.com/1/user/-/activities.json',
             {
@@ -138,7 +113,6 @@ exports.getFitbitActivities = async (req, res) => {
             }
         );
 
-        // Fetch heart rate intraday data
         const heartRateResponse = await axios.get(
             `https://api.fitbit.com/1/user/-/activities/heart/date/${date}/1d/1min.json`,
             {
@@ -146,7 +120,6 @@ exports.getFitbitActivities = async (req, res) => {
             }
         );
 
-        // Fetch activity log (if needed for exercise details)
         const activityLogResponse = await axios.get(
             `https://api.fitbit.com/1/user/-/activities/list.json`,
             {
@@ -155,13 +128,12 @@ exports.getFitbitActivities = async (req, res) => {
             }
         );
 
-        // Parse the responses
         const dailySummary = dailySummaryResponse.data;
         const lifetimeStats = lifetimeStatsResponse.data.lifetime.total;
         const activityLog = activityLogResponse.data.activities || [];
-        const heartRateData = heartRateResponse.data['activities-heart-intraday'].dataset;
+        const heartRateData =
+            heartRateResponse.data['activities-heart-intraday']?.dataset || [];
 
-        // Construct the response object
         const result = {
             dailySummary: {
                 steps: dailySummary.summary.steps,
@@ -195,9 +167,16 @@ exports.getFitbitActivities = async (req, res) => {
             result,
         });
     } catch (error) {
-        console.error('Error fetching Fitbit data:', error.response?.data || error.message);
-        res.status(500).send('Failed to fetch Fitbit data.');
+        console.error('Failed to fetch Fitbit data:', error.response?.data || error.message);
+
+        if (error.response?.status === 401) {
+            return res.status(401).json({ error: 'Access token expired or invalid' });
+        }
+
+        res.status(500).json({ error: 'Failed to fetch Fitbit data' });
     }
-
-
 };
+
+
+
+
