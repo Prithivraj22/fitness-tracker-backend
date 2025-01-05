@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const validateFitbitToken = async (req, res, next) => {
-    const accessToken = req.newAccessToken || req.query.accessToken;
+    const accessToken = req.cookies.fitbitAccessToken;
 
     if (!accessToken) {
         return res.status(400).send('Access token is missing.');
@@ -14,9 +14,8 @@ const validateFitbitToken = async (req, res, next) => {
             },
         });
 
-        // Store the valid token in the request object for further use
+       
         req.validAccessToken = accessToken;
-
         next();
     } catch (error) {
         console.error('Error validating Fitbit token:', error.response?.data || error.message);
