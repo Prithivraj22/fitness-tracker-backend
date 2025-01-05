@@ -4,11 +4,14 @@ const cron = require('node-cron');
 require('dotenv').config();
 const cookieParser = require('cookie-parser');
 const app = express();
-const port = process.env.PORT ||3000;
+const port = process.env.PORT ||4000;
 require('./config.js')
 const routes = require('./routes');
 app.use(cookieParser())
-app.use(cors())
+app.use(cors({
+    origin: 'http://localhost:3000', // Frontend URL
+    credentials: true,              // Allow cookies
+}))
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 

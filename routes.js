@@ -8,9 +8,11 @@ const axios = require('axios');
 
 
     // console.log("hai")
+
 router.post('/signup',controll.signup);
 router.post('/update_macros',controll.updateMacros);
 router.post('/meal',auth,controll.CreateMeal);
+router.post('/logout',controll.logout);
 
 const CLIENT_ID = process.env.FITBIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;

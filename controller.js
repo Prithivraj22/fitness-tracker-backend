@@ -3,12 +3,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const secretKey = process.env.SECRET_KEY;
+const refreshSecret = process.env.REFRESH_SECRET
 const moment = require('moment');
 
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
 const FITBIT_CLIENT_ID = process.env.FITBIT_CLIENT_ID;
 const FITBIT_CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
+
 
 exports.signup = async (req, res) => {
     try {
@@ -26,14 +28,23 @@ exports.signup = async (req, res) => {
             RHtype: req.body.RHtype
         });
         await user.save();
-        const token = jwt.sign({ userId: user._id, email: user.email }, secretKey, { expiresIn: '1h' });
-        res.cookie('token', token, {
+        const acessToken = jwt.sign({ userId: user._id, email: user.email }, secretKey, { expiresIn: '24h' });
+        const refreshToken=jwt.sign({ userId: user._id,email: user.email }, refreshSecret,{expiresIn:'7d'});
+        res.cookie('acessToken', acessToken, {
             httpOnly: true,
-            secure: true,
+            secure: false,
             sameSite: 'strict',
-            maxAge: 3600000,
+            maxAge: 24*3600000,
         });
-        res.send(token);
+        res.cookie('refreshToken',refreshToken,
+            {
+                httpOnly: true,
+            secure: false,
+            sameSite: 'strict',
+            maxAge: 7*24*3600000,
+            }
+        )
+        res.status(200).send(acessToken+','+refreshToken);
     } catch (err) {
         console.error(err);
         res.status(500).send("Internal Server Error");
@@ -187,7 +198,7 @@ exports.getFitbitActivities = async (req, res) => {
             heartRateData: heartRateData.map(entry => ({
                 time: entry.time,
                 bpm: entry.value,
-            }
+            })),
         };
 
         res.json({
@@ -201,3 +212,12 @@ exports.getFitbitActivities = async (req, res) => {
 
 
 };
+exports.logout=(req, res) => {
+    res.cookie('accessToken', '', {
+        httpOnly: true,
+        secure: true, // Use this in production (HTTPS)
+        sameSite: 'strict',
+        maxAge: 0, // Delete immediately
+      });
+      res.status(200).json({ message: 'Access token deleted successfully' });
+}

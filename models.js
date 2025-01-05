@@ -20,7 +20,7 @@ const user=new Schema
         Fat:{type:'Number',default:0},
         Carbs:{type:'Number',default:0},
         bloodGroup:{type:"String"},
-        RHtype:{type:'Boolean'}
+        RHtype:{type:'Boolean',default:false}
 
     }
 )
