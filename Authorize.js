@@ -32,3 +32,6 @@ module.exports = (req,res,next)=>{
     }
 
 }
+// exports.Authorize=(req, res) => {
+
+// }

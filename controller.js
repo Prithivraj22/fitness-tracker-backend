@@ -4,6 +4,9 @@ const bcrypt = require('bcrypt');
 const axios = require('axios');
 const secretKey = process.env.SECRET_KEY;
 const refreshSecret = process.env.REFRESH_SECRET
+// const jwt = require('jsonwebtoken');
+const refresh=require('./refreshController');
+// const secretKey = process.env.SECRET_KEY
 const moment = require('moment');
 
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
@@ -28,13 +31,13 @@ exports.signup = async (req, res) => {
             RHtype: req.body.RHtype
         });
         await user.save();
-        const acessToken = jwt.sign({ userId: user._id, email: user.email }, secretKey, { expiresIn: '24h' });
+        const acessToken = jwt.sign({ userId: user._id, email: user.email }, secretKey, { expiresIn: '0.2h' });
         const refreshToken=jwt.sign({ userId: user._id,email: user.email }, refreshSecret,{expiresIn:'7d'});
         res.cookie('acessToken', acessToken, {
             httpOnly: true,
             secure: false,
             sameSite: 'strict',
-            maxAge: 24*3600000,
+            maxAge: 0.2*3600000,
         });
         res.cookie('refreshToken',refreshToken,
             {
@@ -188,3 +191,21 @@ exports.getFitbitActivities = async (req, res) => {
 
 
 };
+exports.authorize=async (req, res) => {
+    console.log('Authorization happening...');
+    try{
+
+        let acess=req.cookies.acessToken;
+        // console.log('Acess', acess);
+        if(!acess)
+        {
+            const mes=refresh.RefreshController(req, res);
+                        console.log(mes)
+                        if (mes=='404')return res.status(404);
+                        else return res.status(200);
+        }
+        else return res.status(200);
+    }
+    catch(error) {console.log(error)}
+
+}

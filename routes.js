@@ -68,6 +68,7 @@ router.get('/auth/fitbit/callback', async (req, res) => {
 });
 
 
+
 // Step 3: Fetch Fitbit Activities (Middleware to handle token refresh and validation)
 router.get(
     '/fitbit/activities',
@@ -75,5 +76,6 @@ router.get(
     validateFitbitToken,       // Validate the access token
     controll.getFitbitActivities
 );
+router.get('/authorize',controll.authorize)
 
 module.exports = router;

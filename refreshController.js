@@ -4,7 +4,7 @@ exports.RefreshController = (req, res) => {
     console.log('Refreshing')
 
     if (!refreshToken) {
-        return res.send(401);
+        return res.send(404);
     }
 
     try {
@@ -15,7 +15,7 @@ exports.RefreshController = (req, res) => {
         const acessToken = jwt.sign(
             { userId: decoded.userId, email: decoded.email },
             process.env.SECRET_KEY,
-            { expiresIn: '24h' }
+            { expiresIn: '0.5h' }
         );
 
         // Set the new access token as a cookie
@@ -23,8 +23,9 @@ exports.RefreshController = (req, res) => {
             httpOnly: true,
             secure: true, // Secure only in production
             sameSite: 'strict',
-            maxAge: 24 * 3600000, // 24 hours
+            maxAge: 0.5 * 3600000, // 24 hours
         });
+        console.log('hurray')
         return (acessToken);
 
         // return res.status(200).json({ message: 'Access token refreshed successfully' });
