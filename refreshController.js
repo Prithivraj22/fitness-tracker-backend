@@ -4,12 +4,14 @@ exports.RefreshController = (req, res) => {
     console.log('Refreshing')
 
     if (!refreshToken) {
+        console.log("refesh not available");
         return res.send(404);
     }
 
     try {
         // Verify the refresh token
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+        console.log("refesh available");
 
         // Generate a new access token
         const acessToken = jwt.sign(

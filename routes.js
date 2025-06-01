@@ -8,18 +8,21 @@ const axios = require('axios');
 
 
     // console.log("hai")
-router.post('/signup',controll.signup);
-router.post('/update_macros',controll.updateMacros);
-router.post('/meal',auth,controll.CreateMeal);
+// router.post('/signup',controll.signup);
+// router.post('/update_macros',controll.updateMacros);
+// router.post('/meal',auth,controll.CreateMeal);
 
+router.get('/getCalH',auth,controll.getCalH);
 const CLIENT_ID = process.env.FITBIT_CLIENT_ID;
 const CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
 const REDIRECT_URI = process.env.FITBIT_REDIRECT_URI;
 
 // POST routes
 router.post('/signup', controll.signup);
-router.post('/update_macros', controll.updateMacros);
+router.post('/update_macros', auth,controll.updateMacros);
 router.post('/meal', auth, controll.CreateMeal);
+router.get('/user-data', auth, controll.getUserDetails);
+
 
 // Step 1: Redirect to Fitbit Authorization URL
 router.get('/auth/fitbit', (req, res) => {

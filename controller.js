@@ -1,5 +1,9 @@
-const { User, Food } = require('./models');
+const { User, Food ,Calorie_history} = require('./models');
+// const jwt = require('jsonwebtoken');
+const { ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
+// const refresh=require('./refreshController');
+// const secretKey = process.env.SECRET_KEY
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const secretKey = process.env.SECRET_KEY;
@@ -8,6 +12,7 @@ const refreshSecret = process.env.REFRESH_SECRET
 const refresh=require('./refreshController');
 // const secretKey = process.env.SECRET_KEY
 const moment = require('moment');
+const { data } = require('react-router-dom');
 
 const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
 const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
@@ -17,6 +22,7 @@ const FITBIT_CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
 
 exports.signup = async (req, res) => {
     try {
+        console.log('signup');
         const hashed_pass = await bcrypt.hash(req.body.password, 10);
         const user = await User({
             username: req.body.username,
@@ -31,8 +37,11 @@ exports.signup = async (req, res) => {
             RHtype: req.body.RHtype
         });
         await user.save();
-        const acessToken = jwt.sign({ userId: user._id, email: user.email }, secretKey, { expiresIn: '0.2h' });
-        const refreshToken=jwt.sign({ userId: user._id,email: user.email }, refreshSecret,{expiresIn:'7d'});
+        console.log(":)",secretKey);
+        console.log(":(",refreshSecret);
+        const acessToken = jwt.sign({ userId: user._id, email: user.email }, process.env.SECRET_KEY, { expiresIn: '0.2h' });
+        const refreshToken=jwt.sign({ userId: user._id,email: user.email }, process.env.REFRESH_SECRET,{expiresIn:'7d'});
+        
         res.cookie('acessToken', acessToken, {
             httpOnly: true,
             secure: false,
@@ -64,9 +73,27 @@ exports.CreateMeal = async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 };
+exports.getUserDetails=async(req,res)=>
+
+{
+    try{
+        // let token=req.cookies.acessToken;
+        const user_data=req.userData;
+        const data=await User.findOne({_id:user_data.userId})
+        console.log("kat:",data);
+        res.send(data);
+
+    }
+    catch(error)
+    {
+        console.log(error)
+    }
+
+}
 
 exports.updateMacros = async (req, res) => {
-    const user_id = req.body.user_id;
+    const user_id = req.userData.userId;
+    console.log("hehe",user_id);
     try {
         await User.findOneAndUpdate(
             { _id: user_id },
@@ -103,6 +130,7 @@ exports.getStravaActivities = async (req, res) => {
 
 
 exports.getFitbitActivities = async (req, res) => {
+
     const accessToken = req.cookies.fitbitAccessToken;
 
     if (!accessToken) {
@@ -196,11 +224,12 @@ exports.authorize=async (req, res) => {
     try{
 
         let acess=req.cookies.acessToken;
-        // console.log('Acess', acess);
+        console.log('Acess', acess);
         if(!acess)
         {
+            console.log('checking---')
+
             const mes=refresh.RefreshController(req, res);
-                        console.log(mes)
                         if (mes=='404')return res.status(404);
                         else return res.status(200);
         }
@@ -208,4 +237,49 @@ exports.authorize=async (req, res) => {
     }
     catch(error) {console.log(error)}
 
+}
+
+exports.updateCalorieAtMidnight=async(req,res)=>
+{
+    console.log('cron called controller');
+    const date=Date.now();
+    // const userId=req.userData.userId;
+    try{
+        
+        const users=await User.find({});
+        for(const user of users){
+        const new_history=await Calorie_history({
+            date:date,
+            calorie_in:user.Calorie,
+            calorie_burnt:0,
+            author:user._id
+            });
+        new_history.save();
+        await User.updateOne({id:user._id},{Calorie:0,Protein:0,Fat:0,Carbs:0});
+
+    //   user.save();
+
+
+}
+// console.log("hhhhh");
+        // new_history.save();
+        // const user =await User.updateOne({id:userId},{Calorie:0,Protein:0,Fat:0,Carbs:0});
+    //   user.save();
+
+
+    }
+    catch(error) {console.log(error);}
+}
+exports.getCalH=async(req,res)=>{
+    
+   const user_id = req.userData.userId;
+    console.log("hehe",user_id);
+
+    
+    try{
+        const data=await Calorie_history.find({Author:req.userData.userId})
+        console.log(data)
+        res.send(data)
+    }
+    catch(error) {console.log(error)}
 }

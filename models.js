@@ -53,4 +53,5 @@ const calorie_history=new Schema(
 )
 const User=mongoose.model('User',user);
 const Food=mongoose.model('Food',food);
-module.exports ={User,Food};
+const Calorie_history=mongoose.model('Calorie_history',calorie_history);
+module.exports ={User,Food,Calorie_history};
