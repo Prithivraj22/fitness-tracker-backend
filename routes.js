@@ -22,14 +22,14 @@ router.post('/signup', controll.signup);
 router.post('/update_macros', auth,controll.updateMacros);
 router.post('/meal', auth, controll.CreateMeal);
 router.get('/user-data', auth, controll.getUserDetails);
+router.post('/login', controll.login);
 
 
 // Step 1: Redirect to Fitbit Authorization URL
 router.get('/auth/fitbit', (req, res) => {
     const authURL = `https://www.fitbit.com/oauth2/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=activity%20heartrate%20profile%20sleep`;
     res.redirect(authURL);
-});
-
+})
 // Step 2: Exchange Authorization Code for Access Token
 router.get('/auth/fitbit/callback', async (req, res) => {
     const code = req.query.code;

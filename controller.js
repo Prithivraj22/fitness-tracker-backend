@@ -283,3 +283,41 @@ exports.getCalH=async(req,res)=>{
     }
     catch(error) {console.log(error)}
 }
+exports.login = async (req, res) => {
+    console.log('login');
+    try{
+         const user = await User.findOne({ username:req.body.username });
+        if (!user) {
+            console.log("User not found");
+            return res.status(400);
+        }
+        const isMatch = await bcrypt.compare(req.body.password, user.password);
+        console.log("isMatch",isMatch);
+        if (!isMatch) {
+            return res.status(400).send("Invalid credentials");
+        }
+        const acessToken = jwt.sign({ userId: user._id, email: user.email }, process.env.SECRET_KEY, { expiresIn: '0.2h' });
+        const refreshToken = jwt.sign({ userId: user._id, email: user.email }, process.env.REFRESH_SECRET, { expiresIn: '7d' });
+
+        res.cookie('acessToken', acessToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'strict',
+            maxAge: 0.2*3600000,
+        });
+        res.cookie('refreshToken',refreshToken,
+            {
+                httpOnly: true,
+            secure: false,
+            sameSite: 'strict',
+            maxAge: 7*24*3600000,
+            }
+        )
+        res.status(200).send(acessToken+','+refreshToken);
+    }
+    catch(err) {
+        console.error(err);
+        return res.status(500).send("Internal Server Error");
+    }
+   
+}
