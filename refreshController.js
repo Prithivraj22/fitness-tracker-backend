@@ -5,7 +5,7 @@ exports.RefreshController = (req, res) => {
 
     if (!refreshToken) {
         console.log("refesh not available");
-        return res.send(404);
+        return 404; 
     }
 
     try {
@@ -29,10 +29,8 @@ exports.RefreshController = (req, res) => {
         });
         console.log('hurray')
         return (acessToken);
-
-        // return res.status(200).json({ message: 'Access token refreshed successfully' });
     } catch (err) {
         console.error('Error verifying refresh token:', err);
-        return res.status(403).json({ message: 'Invalid refresh token' });
+        return 403;
     }
 };
