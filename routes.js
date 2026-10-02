@@ -24,6 +24,7 @@ const {
     getIdentity: getGoogleHealthIdentity,
     revokeToken: revokeGoogleHealthToken,
 } = require('./googleHealthClient');
+const { getPrimaryFrontendOrigin, isAllowedFrontendOrigin } = require('./frontendOrigins');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -31,18 +32,6 @@ const loginLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
-
-const isAllowedFrontendOrigin = (origin) => {
-    try {
-        const parsed = new URL(origin);
-        const configuredOrigin = new URL(process.env.FRONTEND_URL || 'http://localhost:3000').origin;
-        if (parsed.origin === configuredOrigin) return true;
-        return process.env.NODE_ENV !== 'production' && parsed.hostname === 'localhost';
-    } catch (error) {
-        return false;
-    }
-};
-
 
 router.get('/nutrition/history', auth, controll.getNutritionHistory);
 const CLIENT_ID = process.env.FITBIT_CLIENT_ID;
@@ -149,7 +138,7 @@ router.post('/logout', async (req, res) => {
 router.get('/auth/fitbit', auth, (req, res) => {
     const returnTo = isAllowedFrontendOrigin(req.query.returnTo)
         ? new URL(req.query.returnTo).origin
-        : process.env.FRONTEND_URL || 'http://localhost:3000';
+        : getPrimaryFrontendOrigin();
     const state = signFitbitOAuthState({
         userId: req.userData.userId,
         returnTo,
@@ -220,7 +209,7 @@ router.get('/auth/fitbit/callback', async (req, res) => {
 
         const frontendOrigin = isAllowedFrontendOrigin(stateData.returnTo)
             ? stateData.returnTo
-            : process.env.FRONTEND_URL || 'http://localhost:3000';
+            : getPrimaryFrontendOrigin();
         return res.redirect(`${frontendOrigin}/dashboard`);
     } catch (error) {
         console.error('Fitbit authorization exchange failed.');
@@ -232,7 +221,7 @@ router.get('/auth/google-health', auth, (req, res) => {
     try {
         const returnTo = isAllowedFrontendOrigin(req.query.returnTo)
             ? new URL(req.query.returnTo).origin
-            : process.env.FRONTEND_URL || 'http://localhost:3000';
+            : getPrimaryFrontendOrigin();
         const state = signGoogleHealthOAuthState({
             userId: req.userData.userId,
             returnTo,
@@ -310,7 +299,7 @@ router.get('/auth/google-health/callback', async (req, res) => {
 
         const frontendOrigin = isAllowedFrontendOrigin(stateData.returnTo)
             ? stateData.returnTo
-            : process.env.FRONTEND_URL || 'http://localhost:3000';
+            : getPrimaryFrontendOrigin();
         return res.redirect(`${frontendOrigin}/dashboard?health=connected`);
     } catch (error) {
         console.error('Google Health authorization exchange failed.');
