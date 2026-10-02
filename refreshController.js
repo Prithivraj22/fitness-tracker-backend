@@ -1,32 +1,33 @@
-const jwt = require('jsonwebtoken');
-exports.RefreshController = (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+const { User } = require('./models');
+const { REFRESH_COOKIE, setAuthCookies } = require('./authCookies');
+const {
+    hashToken,
+    signAccessToken,
+    signRefreshToken,
+    verifyRefreshToken,
+} = require('./authTokens');
+
+exports.RefreshController = async (req, res) => {
+    const refreshToken = req.cookies[REFRESH_COOKIE];
 
     if (!refreshToken) {
-        return 404; 
+        return null;
     }
 
     try {
-        // Verify the refresh token
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+        const decoded = verifyRefreshToken(refreshToken);
+        const rotatedRefreshToken = signRefreshToken(decoded.sub);
+        const user = await User.findOneAndUpdate(
+            { _id: decoded.sub, refreshTokenHash: hashToken(refreshToken) },
+            { $set: { refreshTokenHash: hashToken(rotatedRefreshToken) } },
+            { new: true }
+        ).select('email');
+        if (!user) return null;
 
-        // Generate a new access token
-        const acessToken = jwt.sign(
-            { userId: decoded.userId, email: decoded.email },
-            process.env.SECRET_KEY,
-            { expiresIn: '0.5h' }
-        );
-
-        // Set the new access token as a cookie
-        res.cookie('acessToken', acessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // only require HTTPS in production; localhost is http
-            sameSite: 'strict',
-            maxAge: 0.5 * 3600000, // 24 hours
-        });
-        return (acessToken);
+        const accessToken = signAccessToken(user);
+        setAuthCookies(res, accessToken, rotatedRefreshToken);
+        return accessToken;
     } catch (err) {
-        console.error('Error verifying refresh token:', err);
-        return 403;
+        return null;
     }
 };

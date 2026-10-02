@@ -1,35 +1,136 @@
-const { User, Food ,Calorie_history} = require('./models');
-// const jwt = require('jsonwebtoken');
-const { ObjectId } = require('mongodb');
-const jwt = require('jsonwebtoken');
-// const refresh=require('./refreshController');
-// const secretKey = process.env.SECRET_KEY
+const { User, Food, CalorieHistory } = require('./models');
+const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
-const secretKey = process.env.SECRET_KEY;
-const refreshSecret = process.env.REFRESH_SECRET
-// const jwt = require('jsonwebtoken');
 const refresh=require('./refreshController');
-// const secretKey = process.env.SECRET_KEY
 const moment = require('moment');
-const { data } = require('react-router-dom');
+const { ACCESS_COOKIE, setAuthCookies } = require('./authCookies');
+const { hashToken, signAccessToken, signRefreshToken, verifyAccessToken } = require('./authTokens');
+const { fetchDashboardData } = require('./googleHealthClient');
+const { calculateNutrition, getNutritionDate } = require('./dailyNutrition');
 
-const CLIENT_ID = process.env.STRAVA_CLIENT_ID;
-const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
-const FITBIT_CLIENT_ID = process.env.FITBIT_CLIENT_ID;
-const FITBIT_CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
+const calculateAge = (dob, now = new Date()) => {
+    const birthDate = new Date(dob);
+    if (Number.isNaN(birthDate.getTime()) || birthDate > now) return null;
+    let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+    const birthdayPassed = now.getUTCMonth() > birthDate.getUTCMonth()
+        || (now.getUTCMonth() === birthDate.getUTCMonth() && now.getUTCDate() >= birthDate.getUTCDate());
+    if (!birthdayPassed) age -= 1;
+    return age;
+};
+
+const publicUser = (user) => ({
+    id: user._id,
+    username: user.displayName || user.username,
+    displayName: user.displayName || user.username,
+    email: user.email,
+    mobileno: user.mobileno,
+    height: user.height,
+    weight: user.weight,
+    dob: user.dob,
+    age: calculateAge(user.dob),
+    country: user.country,
+    gender: user.gender,
+    Calorie: user.Calorie,
+    Protein: user.Protein,
+    Fat: user.Fat,
+    Carbs: user.Carbs,
+    bloodGroup: user.bloodGroup,
+    RHtype: user.RHtype,
+});
+
+const isFiniteNumber = (value) => Number.isFinite(Number(value));
+
+const upsertCalorieHistory = async (filter, update) => {
+    try {
+        return await CalorieHistory.findOneAndUpdate(
+            filter,
+            update,
+            { upsert: true, setDefaultsOnInsert: true }
+        );
+    } catch (error) {
+        // Two dashboard requests can create today's row at the same time.
+        if (error?.code !== 11000) throw error;
+        return CalorieHistory.findOneAndUpdate(filter, update);
+    }
+};
+
+const rollDailyNutrition = async (userId, date) => {
+    let current = await User.findById(userId);
+    if (!current) return null;
+
+    if (!current.nutritionDate) {
+        current = await User.findByIdAndUpdate(
+            userId,
+            { $set: { nutritionDate: date } },
+            { new: true }
+        );
+        return current;
+    }
+    if (current.nutritionDate === date) return current;
+
+    const previous = getNutritionDate(current.nutritionDate);
+    await upsertCalorieHistory(
+        { author: userId, date: previous.start },
+        { $set: { calorie_in: Number(current.Calorie) || 0 } }
+    );
+
+    const reset = await User.findOneAndUpdate(
+        { _id: userId, nutritionDate: current.nutritionDate },
+        {
+            $set: {
+                nutritionDate: date,
+                Calorie: 0,
+                Protein: 0,
+                Fat: 0,
+                Carbs: 0,
+            },
+        },
+        { new: true }
+    );
+    return reset || User.findById(userId);
+};
+
+const saveCaloriesBurned = (userId, date, calories) => {
+    const amount = Number(calories);
+    if (!Number.isFinite(amount) || amount < 0) return Promise.resolve();
+    return upsertCalorieHistory(
+        { author: userId, date: getNutritionDate(date).start },
+        { $set: { calorie_burnt: amount } }
+    );
+};
+
+const issueAuthCookies = async (res, user) => {
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user._id);
+
+    await User.updateOne({ _id: user._id }, { refreshTokenHash: hashToken(refreshToken) });
+    setAuthCookies(res, accessToken, refreshToken);
+};
 
 
 exports.signup = async (req, res) => {
-    console.log("Signup request body:", req.body);
     try {
+        const { displayName, username, email, password, height, weight, dob, gender } = req.body;
+        const displayNameInput = displayName !== undefined ? displayName : username;
+        const normalizedDisplayName = typeof displayNameInput === 'string' ? displayNameInput.trim() : '';
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const age = calculateAge(dob);
+        if (!normalizedDisplayName || !/^\S+@\S+\.\S+$/.test(normalizedEmail) ||
+            typeof password !== 'string' || password.length < 8 ||
+            !isFiniteNumber(height) || Number(height) < 50 || Number(height) > 300 ||
+            !isFiniteNumber(weight) || Number(weight) < 10 || Number(weight) > 500 ||
+            age === null || age < 13 || age > 120 || typeof gender !== 'boolean') {
+            return res.status(400).json({ error: 'Valid account and health profile details are required.' });
+        }
         const hashed_pass = await bcrypt.hash(req.body.password, 10);
         const user = await User({
-            username: req.body.username,
+            username: normalizedEmail,
+            displayName: normalizedDisplayName,
             password: hashed_pass,
-            email: req.body.email,
-            height: req.body.height,
-            weight: req.body.weight,
+            email: normalizedEmail,
+            height: Number(req.body.height),
+            weight: Number(req.body.weight),
             dob: req.body.dob,
             country: req.body.country,
             gender: req.body.gender,
@@ -37,36 +138,23 @@ exports.signup = async (req, res) => {
             RHtype: req.body.RHtype
         });
         await user.save();
-        const acessToken = jwt.sign({ userId: user._id, email: user.email }, process.env.SECRET_KEY, { expiresIn: '0.2h' });
-        const refreshToken=jwt.sign({ userId: user._id,email: user.email }, process.env.REFRESH_SECRET,{expiresIn:'7d'});
-        
-        res.cookie('acessToken', acessToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: 'strict',
-            maxAge: 0.2*3600000,
-        });
-        res.cookie('refreshToken',refreshToken,
-            {
-                httpOnly: true,
-            secure: false,
-            sameSite: 'strict',
-            maxAge: 7*24*3600000,
-            }
-        )
-        res.status(200).send(acessToken+','+refreshToken);
+        await issueAuthCookies(res, user);
+        res.status(200).json({ authenticated: true });
     } catch (err) {
-        console.error(err);
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'Username or email already exists.' });
+        }
+        console.error('Signup failed.');
         res.status(500).send("Internal Server Error");
     }
 };
 
 exports.getFoods = async (req, res) => {
     try {
-        const foods = await Food.find({});
+        const foods = await Food.find({}).sort({ dish_name: 1 });
         res.send(foods);
     } catch (err) {
-        console.error(err);
+        console.error('Food lookup failed.');
         res.status(500).send("Internal Server Error");
     }
 };
@@ -74,36 +162,102 @@ exports.getFoods = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     const user_id = req.userData.userId;
     try {
-        const { username, email, mobileno, age, bloodGroup, height, weight } = req.body;
+        const { displayName, username, email, mobileno, dob, bloodGroup, height, weight } = req.body;
+        const requestedDisplayName = displayName !== undefined ? displayName : username;
         const update = {};
-        if (username !== undefined) update.username = username;
-        if (email !== undefined) update.email = email;
-        if (mobileno !== undefined) update.mobileno = mobileno;
-        if (age !== undefined) update.age = age;
+        if (requestedDisplayName !== undefined) {
+            if (typeof requestedDisplayName !== 'string') {
+                return res.status(400).json({ error: 'Name must be text.' });
+            }
+            update.displayName = requestedDisplayName.trim();
+        }
+        if (email !== undefined) {
+            if (typeof email !== 'string') {
+                return res.status(400).json({ error: 'Valid email is required.' });
+            }
+            update.email = email.trim().toLowerCase();
+        }
+        if (mobileno !== undefined) {
+            if (typeof mobileno !== 'string') {
+                return res.status(400).json({ error: 'Enter a valid phone number.' });
+            }
+            update.mobileno = mobileno.trim();
+        }
+        if (dob !== undefined) update.dob = dob;
         if (bloodGroup !== undefined) update.bloodGroup = bloodGroup;
-        if (height !== undefined) update.height = height;
-        if (weight !== undefined) update.weight = weight;
+        if (height !== undefined) update.height = Number(height);
+        if (weight !== undefined) update.weight = Number(weight);
+
+        if (requestedDisplayName !== undefined && !update.displayName) {
+            return res.status(400).json({ error: 'Name is required.' });
+        }
+        if (email !== undefined && !/^\S+@\S+\.\S+$/.test(update.email)) {
+            return res.status(400).json({ error: 'Valid email is required.' });
+        }
+        for (const field of ['height', 'weight']) {
+            if (update[field] !== undefined && !isFiniteNumber(update[field])) {
+                return res.status(400).json({ error: `${field} must be numeric.` });
+            }
+        }
+        if (dob !== undefined) {
+            const age = calculateAge(dob);
+            if (age === null || age < 13 || age > 120) {
+                return res.status(400).json({ error: 'Date of birth must give an age between 13 and 120.' });
+            }
+        }
+        if (mobileno !== undefined && update.mobileno && !/^\+?[0-9 ()-]{7,25}$/.test(update.mobileno)) {
+            return res.status(400).json({ error: 'Enter a valid phone number.' });
+        }
 
         const updatedUser = await User.findOneAndUpdate(
             { _id: user_id },
             update,
-            { new: true }
+            { new: true, runValidators: true }
         );
-        res.send(updatedUser);
+        if (!updatedUser) return res.status(404).json({ error: 'User not found.' });
+        res.json(publicUser(updatedUser));
     } catch (err) {
-        console.error(err);
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'An account with this email already exists.' });
+        }
+        if (err.name === 'ValidationError' || err.name === 'CastError') {
+            return res.status(400).json({ error: 'Profile details are invalid.' });
+        }
+        console.error('Profile update failed.');
         res.status(500).send("Internal Server Error");
     }
 };
 
-exports.CreateMeal = async (req, res) => {
+exports.addDailyNutrition = async (req, res) => {
     try {
-        const new_meal = await Food(req.body);
-        await new_meal.save();
-        res.send(new_meal);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Internal Server Error");
+        if (!mongoose.isValidObjectId(req.body.foodId)) {
+            return res.status(400).json({ error: 'A valid food is required.' });
+        }
+        const { value: date } = getNutritionDate(req.body.date);
+        const food = await Food.findById(req.body.foodId);
+        if (!food) return res.status(404).json({ error: 'Food not found.' });
+        const nutrition = calculateNutrition(food, req.body.quantity);
+        const user = await rollDailyNutrition(req.userData.userId, date);
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+        const updated = await User.findByIdAndUpdate(
+            user._id,
+            {
+                $inc: {
+                    Calorie: nutrition.calories,
+                    Protein: nutrition.protein,
+                    Fat: nutrition.fat,
+                    Carbs: nutrition.carbs,
+                },
+            },
+            { new: true, runValidators: true }
+        );
+        return res.status(200).json({ date, nutrition: publicUser(updated) });
+    } catch (error) {
+        if (error instanceof TypeError) {
+            return res.status(400).json({ error: error.message });
+        }
+        console.error('Daily nutrition update failed.');
+        return res.status(500).json({ error: 'Unable to update today\'s nutrition.' });
     }
 };
 exports.getUserDetails=async(req,res)=>
@@ -112,52 +266,21 @@ exports.getUserDetails=async(req,res)=>
     try{
         // let token=req.cookies.acessToken;
         const user_data=req.userData;
-        const data=await User.findOne({_id:user_data.userId})
-        res.send(data);
+        const { value: date } = getNutritionDate(req.query.date);
+        const data = await rollDailyNutrition(user_data.userId, date);
+        if (!data) return res.status(404).json({ error: 'User not found.' });
+        res.json(publicUser(data));
 
     }
     catch(error)
     {
-        console.log(error)
+        if (error instanceof TypeError) {
+            return res.status(400).json({ error: error.message });
+        }
+        return res.status(500).send('Internal Server Error');
     }
 
 }
-
-exports.updateMacros = async (req, res) => {
-    const user_id = req.userData.userId;
-    try {
-        await User.findOneAndUpdate(
-            { _id: user_id },
-            { $inc: { Calorie: req.body.calorie, Protein: req.body.protein, Fat: req.body.fat, Carbs: req.body.carbs } },
-            { new: true },
-        );
-        const updatedUser = await User.findOne({ _id: user_id });
-        res.send(updatedUser);
-    } catch (err) {
-        console.error(err);
-    }
-};
-
-// Fetch Strava Activities
-exports.getStravaActivities = async (req, res) => {
-    const accessToken = req.validAccessToken;
-
-    if (!accessToken) {
-        return res.status(400).send('Access token is missing.');
-    }
-
-        try {
-        const result = await fetchFitbitData(accessToken, date);
-        res.json({
-            message: 'Fitbit data fetched successfully!',
-            result,
-        });
-    } catch (error) {
-        console.error('Error fetching Fitbit data:', error.message);
-        res.status(500).send('Failed to fetch Fitbit data.');
-    }
-};
-
 
 exports.getFitbitActivities = async (req, res) => {
 
@@ -168,6 +291,9 @@ exports.getFitbitActivities = async (req, res) => {
     }
 
     const date = req.query.date || moment().format('YYYY-MM-DD');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) {
+        return res.status(400).json({ error: 'Date must use YYYY-MM-DD format.' });
+    }
 
     try {
         const dailySummaryResponse = await axios.get(
@@ -233,13 +359,15 @@ exports.getFitbitActivities = async (req, res) => {
             })),
         };
 
+        await saveCaloriesBurned(req.userData.userId, date, result.dailySummary.caloriesBurned);
+
         res.json({
             message: 'Fitbit data fetched successfully!',
+            provider: 'fitbit',
+            migrationRequired: true,
             result,
         });
     } catch (error) {
-        console.error('Failed to fetch Fitbit data:', error.response?.data || error.message);
-
         if (error.response?.status === 401) {
             return res.status(401).json({ error: 'Access token expired or invalid' });
         }
@@ -249,101 +377,99 @@ exports.getFitbitActivities = async (req, res) => {
 
 
 };
+
+exports.getGoogleHealthActivities = async (req, res) => {
+    const accessToken = req.validGoogleHealthAccessToken;
+    if (!accessToken) {
+        return res.status(401).json({ error: 'Google Health access token is missing.' });
+    }
+    const date = req.query.date || moment().format('YYYY-MM-DD');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) {
+        return res.status(400).json({ error: 'Date must use YYYY-MM-DD format.' });
+    }
+    try {
+        const result = await fetchDashboardData(accessToken, date);
+        await saveCaloriesBurned(req.userData.userId, date, result.dailySummary.caloriesBurned);
+        return res.json({
+            message: 'Google Health data fetched successfully!',
+            provider: 'google',
+            migrationRequired: false,
+            result,
+        });
+    } catch (error) {
+        if (error.response?.status === 401) {
+            return res.status(401).json({
+                code: 'HEALTH_RECONNECT_REQUIRED',
+                error: 'Google Health access was rejected. Please reconnect.',
+            });
+        }
+        console.error('Google Health data request failed.');
+        return res.status(502).json({ error: 'Failed to fetch Google Health data.' });
+    }
+};
 exports.authorize=async (req, res) => {
     try{
-        let acess=req.cookies.acessToken;
-        if (acess) {
-            return res.status(200).send({ authorized: true });
+        const accessToken = req.cookies[ACCESS_COOKIE];
+        if (accessToken) {
+            verifyAccessToken(accessToken);
+            return res.json({ authorized: true });
         }
 
-        const result = refresh.RefreshController(req, res);
-        if (result === 404 || result === 403) {
-            // No refresh token, or refresh token invalid/expired — not authorized.
+        const result = await refresh.RefreshController(req, res);
+        if (!result) {
             return res.status(401).send({ authorized: false });
         }
-        // result is a freshly issued access token — refresh succeeded.
-        return res.status(200).send({ authorized: true });
+        return res.json({ authorized: true });
     }
     catch(error) {
-        console.error('Error in authorize:', error);
-        res.status(500).send({ authorized: false });
+        const result = await refresh.RefreshController(req, res);
+        return res.status(result ? 200 : 401).send({ authorized: Boolean(result) });
     }
 }
 
-exports.updateCalorieAtMidnight=async(req,res)=>
-{
-    const date=Date.now();
-    // const userId=req.userData.userId;
+exports.getNutritionHistory=async(req,res)=>{
     try{
-        
-        const users=await User.find({});
-        for(const user of users){
-        const new_history=await Calorie_history({
-            date:date,
-            calorie_in:user.Calorie,
-            calorie_burnt:0,
-            author:user._id
-            });
-        new_history.save();
-        await User.updateOne({id:user._id},{Calorie:0,Protein:0,Fat:0,Carbs:0});
-
-    //   user.save();
-
-
-}
-        // new_history.save();
-        // const user =await User.updateOne({id:userId},{Calorie:0,Protein:0,Fat:0,Carbs:0});
-    //   user.save();
-
-
-    }
-    catch(error) {console.error(error);}
-}
-exports.getCalH=async(req,res)=>{
-    
-   const user_id = req.userData.userId;
-
-    
-    try{
-        const data=await Calorie_history.find({author:req.userData.userId})
+        const { value: date, start } = getNutritionDate(req.query.date);
+        const user = await rollDailyNutrition(req.userData.userId, date);
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+        await upsertCalorieHistory(
+            { author: user._id, date: start },
+            { $set: { calorie_in: Number(user.Calorie) || 0 } }
+        );
+        const data = await CalorieHistory.find({ author: user._id })
+            .sort({ date: -1 })
+            .limit(30)
+            .select('-_id date calorie_in calorie_burnt')
+            .lean();
+        data.reverse();
         res.send(data)
     }
-    catch(error) {console.error(error);}
+    catch(error) { res.status(500).send('Calorie history lookup failed.'); }
 }
 exports.login = async (req, res) => {
-    console.log("Login request body:", req.body);
     try{
-         const user = await User.findOne({ username:req.body.username });
-         console.log("User found:", user);
+        const identifier = String(req.body.email || req.body.username || '').trim();
+        if (!identifier || typeof req.body.password !== 'string') {
+            return res.status(400).send('Email and password are required.');
+        }
+        const user = await User.findOne({
+            $or: [
+                { email: identifier.toLowerCase() },
+                { username: identifier },
+            ],
+        }).select('+password');
         if (!user) {
-            return res.status(400);
+            return res.status(401).send("Invalid credentials");
         }
         const isMatch = await bcrypt.compare(req.body.password, user.password);
-        console.log("Password match:", isMatch);
         if (!isMatch) {
-            return res.status(400).send("Invalid credentials");
+            return res.status(401).send("Invalid credentials");
         }
-        const acessToken = jwt.sign({ userId: user._id, email: user.email }, process.env.SECRET_KEY, { expiresIn: '0.2h' });
-        const refreshToken = jwt.sign({ userId: user._id, email: user.email }, process.env.REFRESH_SECRET, { expiresIn: '7d' });
-
-        res.cookie('acessToken', acessToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: 'strict',
-            maxAge: 0.2*3600000,
-        });
-        res.cookie('refreshToken',refreshToken,
-            {
-                httpOnly: true,
-            secure: false,
-            sameSite: 'strict',
-            maxAge: 7*24*3600000,
-            }
-        )
-        res.status(200).send(acessToken+','+refreshToken);
+        await issueAuthCookies(res, user);
+        res.status(200).json({ authenticated: true });
     }
     catch(err) {
-        console.error(err);
+        console.error('Login failed.');
         return res.status(500).send("Internal Server Error");
     }
    

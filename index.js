@@ -1,25 +1,43 @@
 const express = require('express');
-const cron = require('node-cron');
-const {User,Calorie_history} = require('./models.js');
+require('dotenv').config();
 const cors = require('cors');
-// const cron = require('node-cron');
-const controll= require('./controller.js');
-const moment = require('moment');  
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 const cookieParser = require('cookie-parser');
 const app = express();
 const port = process.env.PORT ||4000;
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const allowedOrigins = new Set([
+  frontendUrl,
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://fitness-tracker-frontend-eta.vercel.app',
+]);
 require('./config.js')
 const routes = require('./routes');
-const authorize = require('./Authorize.js');
-// let userId=9089;
+app.set('trust proxy', 1);
+app.use(helmet());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
 app.use(cookieParser())
 app.use(cors({
-    origin: 'http://localhost:3000', 
-    credentials: true, 
-  }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    try {
+      const parsedOrigin = new URL(origin);
+      const isAllowedLocalhost = parsedOrigin.hostname === 'localhost';
+      if (allowedOrigins.has(origin) || isAllowedLocalhost) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin not allowed.'));
+    } catch (error) {
+      return callback(new Error('Origin not allowed.'));
+    }
+  },
+  credentials: true,
+}));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '10kb' }));
 
 
 app.get('/', (req, res) => {
@@ -29,47 +47,18 @@ app.get('/', (req, res) => {
 
 
 app.use(routes);
-// cron.schedule('*/1 * * * *', async () => {
-//   console.log("Cron scheduler scheduled and working successfully");
-
-//   try {
-//     // Call authorize and update calorie
-//     //  authorize// Ensure authorize() is asynchronous if needed
-//     controll.updateCalorieAtMidnight() // Ensure updateCalorieAtMidnight() handles database updates correctly
-
-//     console.log("Calorie update task completed successfully at midnight.");
-//   } catch (error) {
-//     console.error("An error occurred during the cron job execution:", error);
-//   }
-// });
-cron.schedule('55 23 * * *', async () => {
-  const users = await User.find({});
-  var datetime = new Date();
-  const date=datetime.toISOString().slice(0,10)
-  for (let i = 0; i < users.length; i++) {
-    const userId = users[i]._id;
-    const user=users[i];
-    const ch=new Calorie_history({date:date,calorie_in:users[i].calorie,calorie_burnt:1000,author:userId});
-    ch.save();
-    
-
-    // Update field
-    user.Calorie=0;
-
-    user.Protein=0;
-    user.Fat=0;
-    user.Carbs=0;
-    await user.save();
-    
-
-    // Delay 2 seconds between each update
-    await new Promise(res => setTimeout(res, 0));
-  }
-});
 
 
 const server = app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found.' });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  res.status(500).json({ error: 'Internal server error.' });
 });
 
 server.on('error', (err) => {
@@ -82,7 +71,7 @@ server.on('error', (err) => {
     );
     process.exit(1);
   } else {
-    console.error('Server failed to start:', err);
+    console.error('Server failed to start.');
     process.exit(1);
   }
 });
