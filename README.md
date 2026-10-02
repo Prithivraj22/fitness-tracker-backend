@@ -36,6 +36,11 @@ accounts while profile data is migrated.
 Copy `.env.example` to `.env` and provide deployment-specific secrets and URLs.
 Never commit `.env` or reuse credentials from another environment.
 
+For production, set `NODE_ENV=production` and set `FRONTEND_URL` to the exact
+HTTPS frontend origin. Multiple allowed origins can be comma-separated. The
+deployment health check should request `GET /health`; it returns `200` only
+after MongoDB is connected.
+
 Use different random values for `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`,
 `GOOGLE_HEALTH_OAUTH_STATE_SECRET`, and `PROVIDER_TOKEN_ENCRYPTION_KEY`. Generate at least
 32 random bytes for each value. The older `SECRET_KEY` and `REFRESH_SECRET`
@@ -83,6 +88,18 @@ file without connecting to or changing MongoDB.
 The profile migration copies legacy usernames into the new display-name field.
 New accounts use email for login while existing username logins remain accepted
 during migration. Run the dry-run first to review how many users will change.
+
+### Render deployment
+
+The repository includes `render.yaml`, which creates the Node API and React
+static site together. In Render, create a Blueprint from this backend repository
+and enter `MONGO_URI` when prompted. Render generates the authentication and
+provider-encryption secrets, connects the frontend and backend URLs, deploys the
+API in Singapore, and configures `/health` as its readiness check.
+
+Fitbit and Google Health credentials are intentionally omitted from the initial
+Blueprint. Add their client credentials and deployed HTTPS callback URLs later
+when those integrations are enabled.
 
 ### Frontend
 ```bash
