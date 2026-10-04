@@ -109,7 +109,10 @@ const googleHealthFailureReason = ({ status, code, reason }) => {
 const revokeFitbitRefreshToken = async (encryptedRefreshToken) => {
     if (!encryptedRefreshToken) return;
     const refreshToken = decryptToken(encryptedRefreshToken);
-    if (!refreshToken) throw new Error('Stored Fitbit refresh token is unreadable.');
+    if (!refreshToken) {
+        console.warn('Skipping Fitbit token revocation because the stored token is unreadable.');
+        return;
+    }
     const form = new URLSearchParams({ token: refreshToken });
     try {
         await axios.post('https://api.fitbit.com/oauth2/revoke', form.toString(), {
@@ -120,7 +123,9 @@ const revokeFitbitRefreshToken = async (encryptedRefreshToken) => {
             timeout: 10000,
         });
     } catch (error) {
-        if (error.response?.status !== 400 && error.response?.status !== 401) throw error;
+        console.warn('Fitbit token revocation failed during Google Health migration.', {
+            status: error.response?.status || null,
+        });
     }
 };
 
