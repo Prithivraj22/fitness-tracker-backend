@@ -63,7 +63,8 @@ must exactly match `GOOGLE_HEALTH_REDIRECT_URI`. This Google Health setup does
 not accept the plain `http://localhost` callback shown in older local examples;
 local end-to-end testing therefore needs an HTTPS development URL or tunnel.
 Add your Google account under OAuth Audience > Test users and enable the
-`googlehealth.activity_and_fitness.readonly` scope under Data Access. Keep the
+`googlehealth.activity_and_fitness.readonly` and
+`googlehealth.health_metrics_and_measurements.readonly` scopes under Data Access. Keep the
 client secret only in the backend `.env` file.
 
 ### Backend

@@ -3,7 +3,10 @@ const axios = require('axios');
 const AUTHORIZATION_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API_BASE_URL = 'https://health.googleapis.com/v4';
-const READ_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly';
+const READ_SCOPES = [
+    'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+    'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
+];
 
 const getOAuthConfig = () => {
     const clientId = process.env.GOOGLE_HEALTH_CLIENT_ID;
@@ -24,7 +27,7 @@ const buildAuthorizationUrl = (state) => {
         access_type: 'offline',
         prompt: 'consent',
         include_granted_scopes: 'true',
-        scope: READ_SCOPE,
+        scope: READ_SCOPES.join(' '),
         state,
     });
     return `${AUTHORIZATION_URL}?${params.toString()}`;
@@ -266,25 +269,27 @@ const normalizeDashboardData = ({
 };
 
 const fetchDashboardData = async (accessToken, date) => {
-    const requests = [
+    const [stepsRollup, distanceRollup, caloriesRollup] = await Promise.all([
         dailyRollUp(accessToken, 'steps', date),
         dailyRollUp(accessToken, 'distance', date),
         dailyRollUp(accessToken, 'total-calories', date),
+    ]);
+    const optionalRequests = [
         reconcileDataPoints(accessToken, 'heart-rate', civilIntervalFilter('heart_rate.sample_time.civil_time', date)),
         reconcileDataPoints(accessToken, 'exercise', civilIntervalFilter('exercise.interval.civil_start_time', date)),
     ];
-    const [stepsRollup, distanceRollup, caloriesRollup, heartRate, exercise] = await Promise.all(requests);
+    const [heartRateResult, exerciseResult] = await Promise.allSettled(optionalRequests);
     return normalizeDashboardData({
         stepsRollup,
         distanceRollup,
         caloriesRollup,
-        heartRate,
-        exercise,
+        heartRate: heartRateResult.status === 'fulfilled' ? heartRateResult.value : [],
+        exercise: exerciseResult.status === 'fulfilled' ? exerciseResult.value : [],
     });
 };
 
 module.exports = {
-    READ_SCOPE,
+    READ_SCOPES,
     buildAuthorizationUrl,
     dailyRollUp,
     exchangeAuthorizationCode,

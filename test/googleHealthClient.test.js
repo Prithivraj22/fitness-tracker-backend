@@ -13,10 +13,10 @@ test('Google Health authorization requests offline read-only access', () => {
     assert.equal(url.origin, 'https://accounts.google.com');
     assert.equal(url.searchParams.get('access_type'), 'offline');
     assert.equal(url.searchParams.get('prompt'), 'consent');
-    assert.equal(
-        url.searchParams.get('scope'),
-        'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly'
-    );
+    assert.deepEqual(url.searchParams.get('scope').split(' '), [
+        'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+        'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
+    ]);
     assert.equal(url.searchParams.get('state'), 'signed-state');
 });
 
