@@ -14,10 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: nutrix-web-adhi2312
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://nutrix-web-adhi2312.onrender.com,http://localhost:3000
       - key: MONGO_URI
         sync: false
       - key: ACCESS_TOKEN_SECRET
