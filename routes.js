@@ -84,6 +84,28 @@ const findAccountLinkingUrl = (value) => {
     return null;
 };
 
+const summarizeGoogleHealthError = (error) => {
+    const responseData = error.response?.data;
+    const apiError = responseData?.error;
+    const details = Array.isArray(apiError?.details) ? apiError.details : [];
+    const errorInfo = details.find((detail) => detail && typeof detail === 'object' && detail.reason);
+
+    return {
+        status: error.response?.status || null,
+        code: typeof apiError === 'string' ? apiError : apiError?.status || error.code || null,
+        reason: errorInfo?.reason || null,
+        message: responseData?.error_description || apiError?.message || error.message || 'Unknown error',
+    };
+};
+
+const googleHealthFailureReason = ({ status, code, reason }) => {
+    if (status === 403) return 'api-access-denied';
+    if (reason === 'ACCOUNT_NOT_LINKED') return 'account-not-linked';
+    if (code === 'invalid_client') return 'configuration-error';
+    if (code === 'invalid_grant') return 'authorization-expired';
+    return 'connection-failed';
+};
+
 const revokeFitbitRefreshToken = async (encryptedRefreshToken) => {
     if (!encryptedRefreshToken) return;
     const refreshToken = decryptToken(encryptedRefreshToken);
@@ -302,8 +324,13 @@ router.get('/auth/google-health/callback', async (req, res) => {
             : getPrimaryFrontendOrigin();
         return res.redirect(`${frontendOrigin}/dashboard?health=connected`);
     } catch (error) {
-        console.error('Google Health authorization exchange failed.');
-        return res.status(502).send('Failed to connect Google Health.');
+        const details = summarizeGoogleHealthError(error);
+        console.error('Google Health authorization exchange failed.', details);
+        const frontendOrigin = isAllowedFrontendOrigin(stateData?.returnTo)
+            ? stateData.returnTo
+            : getPrimaryFrontendOrigin();
+        const reason = googleHealthFailureReason(details);
+        return res.redirect(`${frontendOrigin}/dashboard?health=${encodeURIComponent(reason)}`);
     }
 });
 
