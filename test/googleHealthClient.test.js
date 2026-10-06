@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const axios = require('axios');
 
-const { buildAuthorizationUrl, normalizeDashboardData } = require('../googleHealthClient');
+const { buildAuthorizationUrl, dailyRollUp, normalizeDashboardData } = require('../googleHealthClient');
 
 test('Google Health authorization requests offline read-only access', () => {
     process.env.GOOGLE_HEALTH_CLIENT_ID = 'google-client-id';
@@ -94,4 +95,24 @@ test('Google Health normalizer tolerates missing optional data', () => {
     assert.equal(result.dailySummary.caloriesBurned, 0);
     assert.deepEqual(result.heartRateData, []);
     assert.deepEqual(result.activityLog, []);
+});
+
+test('daily rollups send Google Health civil date-time boundaries', async () => {
+    const originalPost = axios.post;
+    let requestBody;
+    axios.post = async (_url, body) => {
+        requestBody = body;
+        return { data: { rollupDataPoints: [] } };
+    };
+
+    try {
+        await dailyRollUp('access-token', 'steps', '2026-10-06');
+    } finally {
+        axios.post = originalPost;
+    }
+
+    assert.deepEqual(requestBody.range, {
+        start: { date: { year: 2026, month: 10, day: 6 }, time: {} },
+        end: { date: { year: 2026, month: 10, day: 7 }, time: {} },
+    });
 });

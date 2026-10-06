@@ -133,13 +133,18 @@ const civilDate = (date) => {
     return { year, month, day };
 };
 
+const civilDateTime = (date) => ({
+    date: civilDate(date),
+    time: {},
+});
+
 const dailyRollUp = async (accessToken, dataType, date) => {
     const response = await axios.post(
         `${API_BASE_URL}/users/me/dataTypes/${encodeURIComponent(dataType)}/dataPoints:dailyRollUp`,
         {
             range: {
-                start: civilDate(date),
-                end: civilDate(nextDate(date)),
+                start: civilDateTime(date),
+                end: civilDateTime(nextDate(date)),
             },
             windowSizeDays: 1,
             pageSize: 1,
