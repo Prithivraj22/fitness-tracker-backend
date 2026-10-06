@@ -314,8 +314,6 @@ router.get('/auth/google-health/callback', async (req, res) => {
                 googleHealthRefreshToken: encryptToken(tokenData.refresh_token),
                 googleHealthAccessTokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
                 googleHealthUserId: identity.healthUserId,
-                googleHealthLegacyUserId: identity.legacyUserId,
-                googleHealthScopes: String(tokenData.scope || '').split(' ').filter(Boolean),
             },
             $unset: {
                 fitbitAccessToken: 1,

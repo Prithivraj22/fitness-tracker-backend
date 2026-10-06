@@ -29,14 +29,12 @@ const publicUser = (user) => ({
     weight: user.weight,
     dob: user.dob,
     age: calculateAge(user.dob),
-    country: user.country,
     gender: user.gender,
     Calorie: user.Calorie,
     Protein: user.Protein,
     Fat: user.Fat,
     Carbs: user.Carbs,
     bloodGroup: user.bloodGroup,
-    RHtype: user.RHtype,
 });
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
@@ -132,10 +130,8 @@ exports.signup = async (req, res) => {
             height: Number(req.body.height),
             weight: Number(req.body.weight),
             dob: req.body.dob,
-            country: req.body.country,
             gender: req.body.gender,
             bloodGroup: req.body.bloodGroup,
-            RHtype: req.body.RHtype
         });
         await user.save();
         await issueAuthCookies(res, user);

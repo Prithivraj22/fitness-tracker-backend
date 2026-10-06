@@ -12,8 +12,6 @@ const user=new Schema
         height:{type:'Number',min:50,max:300},
         weight:{type:'Number',min:10,max:500},
         dob:{type:'Date',required:true},
-        country:{type:'String'},
-
         gender:{type:'Boolean'},
         Calorie:{type:'Number',default:0,min:0},
 
@@ -22,7 +20,6 @@ const user=new Schema
         Carbs:{type:'Number',default:0,min:0},
         nutritionDate:{type:'String',match:/^\d{4}-\d{2}-\d{2}$/},
         bloodGroup:{type:"String"},
-        RHtype:{type:'Boolean',default:false},
         refreshTokenHash:{type:'String',select:false},
         fitbitAccessToken:{type:'String',select:false},
         fitbitRefreshToken:{type:'String',select:false},
@@ -32,8 +29,6 @@ const user=new Schema
         googleHealthRefreshToken:{type:'String',select:false},
         googleHealthAccessTokenExpiresAt:{type:'Date',select:false},
         googleHealthUserId:{type:'String',select:false},
-        googleHealthLegacyUserId:{type:'String',select:false},
-        googleHealthScopes:[{type:'String',select:false}]
 
     }
 )

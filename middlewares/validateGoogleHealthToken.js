@@ -14,8 +14,6 @@ const clearGoogleHealthConnection = (userId) => User.findByIdAndUpdate(userId, {
         googleHealthRefreshToken: 1,
         googleHealthAccessTokenExpiresAt: 1,
         googleHealthUserId: 1,
-        googleHealthLegacyUserId: 1,
-        googleHealthScopes: 1,
         healthProvider: 1,
     },
 });
