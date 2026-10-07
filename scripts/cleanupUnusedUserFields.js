@@ -7,6 +7,8 @@ const fieldsToRemove = {
     RHtype: 1,
     googleHealthScopes: 1,
     googleHealthLegacyUserId: 1,
+    mobileno: 1,
+    bloodGroup: 1,
 };
 
 const run = async () => {

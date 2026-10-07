@@ -24,7 +24,6 @@ const publicUser = (user) => ({
     username: user.displayName || user.username,
     displayName: user.displayName || user.username,
     email: user.email,
-    mobileno: user.mobileno,
     height: user.height,
     weight: user.weight,
     dob: user.dob,
@@ -34,7 +33,6 @@ const publicUser = (user) => ({
     Protein: user.Protein,
     Fat: user.Fat,
     Carbs: user.Carbs,
-    bloodGroup: user.bloodGroup,
 });
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
@@ -131,7 +129,6 @@ exports.signup = async (req, res) => {
             weight: Number(req.body.weight),
             dob: req.body.dob,
             gender: req.body.gender,
-            bloodGroup: req.body.bloodGroup,
         });
         await user.save();
         await issueAuthCookies(res, user);
@@ -158,7 +155,7 @@ exports.getFoods = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     const user_id = req.userData.userId;
     try {
-        const { displayName, username, email, mobileno, dob, bloodGroup, height, weight } = req.body;
+        const { displayName, username, email, dob, height, weight } = req.body;
         const requestedDisplayName = displayName !== undefined ? displayName : username;
         const update = {};
         if (requestedDisplayName !== undefined) {
@@ -173,14 +170,7 @@ exports.updateProfile = async (req, res) => {
             }
             update.email = email.trim().toLowerCase();
         }
-        if (mobileno !== undefined) {
-            if (typeof mobileno !== 'string') {
-                return res.status(400).json({ error: 'Enter a valid phone number.' });
-            }
-            update.mobileno = mobileno.trim();
-        }
         if (dob !== undefined) update.dob = dob;
-        if (bloodGroup !== undefined) update.bloodGroup = bloodGroup;
         if (height !== undefined) update.height = Number(height);
         if (weight !== undefined) update.weight = Number(weight);
 
@@ -200,9 +190,6 @@ exports.updateProfile = async (req, res) => {
             if (age === null || age < 13 || age > 120) {
                 return res.status(400).json({ error: 'Date of birth must give an age between 13 and 120.' });
             }
-        }
-        if (mobileno !== undefined && update.mobileno && !/^\+?[0-9 ()-]{7,25}$/.test(update.mobileno)) {
-            return res.status(400).json({ error: 'Enter a valid phone number.' });
         }
 
         const updatedUser = await User.findOneAndUpdate(
